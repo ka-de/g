@@ -1,6 +1,7 @@
 use octocrab::Octocrab;
 use std::env;
 use std::fs;
+use std::path::Path;
 
 #[tokio::main]
 async fn main() -> octocrab::Result<()> {
@@ -12,16 +13,22 @@ async fn main() -> octocrab::Result<()> {
     let args: Vec<String> = env::args().collect();
 
     if args.len() != 3 {
-        eprintln!("Usage: {} <file_name> <description>", args[0]);
+        eprintln!("Usage: {} <file_path> <description>", args[0]);
         std::process::exit(1);
     }
 
-    // The first argument is the file name, the second is the description
-    let file_name = &args[1];
+    // The first argument is the file path, the second is the description
+    let file_path = &args[1];
     let description = &args[2];
 
+    // Strip the file path from the name
+    let file_name = Path::new(file_path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(file_path);
+
     // Read the file content
-    let content = fs::read_to_string(file_name).expect("Could not read file");
+    let content = fs::read_to_string(file_path).expect("Could not read file");
 
     println!("Creating a gist with the content of {} on your account", file_name);
     let gist = octocrab
