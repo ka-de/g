@@ -5,10 +5,22 @@ use std::path::Path;
 use getopts::Options;
 
 #[tokio::main]
-async fn main() -> octocrab::Result<()> {
-    let token = env::var("GITHUB_TOKEN").expect("GITHUB_TOKEN env variable is required");
+async fn main() {
+    let token = match env::var("GITHUB_TOKEN") {
+        Ok(val) => val,
+        Err(_e) => {
+            eprintln!("GITHUB_TOKEN env variable is required");
+            std::process::exit(1);
+        }
+    };
 
-    let octocrab = Octocrab::builder().personal_token(token).build()?;
+    let octocrab = match Octocrab::builder().personal_token(token).build() {
+        Ok(val) => val,
+        Err(_e) => {
+            eprintln!("Failed to build Octocrab");
+            std::process::exit(1);
+        }
+    };
 
     // Get the command line arguments
     let args: Vec<String> = env::args().collect();
@@ -21,14 +33,18 @@ async fn main() -> octocrab::Result<()> {
     // Parse the options
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => m,
-        Err(f) => panic!("{}", f.to_string()),
+        Err(f) => {
+            eprintln!("{}", f.to_string());
+            std::process::exit(1);
+        }
     };
 
     // The first argument is the file path, the second is the description
     let file_path = if !matches.free.is_empty() {
         &matches.free[0]
     } else {
-        panic!("No file path provided");
+        eprintln!("No file path provided");
+        std::process::exit(1);
     };
     let description = if matches.free.len() > 1 { &matches.free[1] } else { "" };
 
@@ -47,17 +63,30 @@ async fn main() -> octocrab::Result<()> {
         .unwrap_or(file_path);
 
     // Read the file content
-    let content = fs::read_to_string(file_path).expect("Could not read file");
+    let content = match fs::read_to_string(file_path) {
+        Ok(val) => val,
+        Err(_e) => {
+            eprintln!("Could not read file");
+            std::process::exit(1);
+        }
+    };
 
     println!("Creating a gist with the content of {} on your account", file_name);
-    let gist = octocrab
-        .gists()
-        .create()
-        .file(file_name, &content)
-        // Optional Parameters
-        .description(description)
-        .public(is_public)
-        .send().await?;
+    let gist = match
+        octocrab
+            .gists()
+            .create()
+            .file(file_name, &content)
+            // Optional Parameters
+            .description(description)
+            .public(is_public)
+            .send().await
+    {
+        Ok(val) => val,
+        Err(_e) => {
+            eprintln!("Failed to create gist");
+            std::process::exit(1);
+        }
+    };
     println!("Done, created: {url}", url = gist.html_url);
-    Ok(())
 }
