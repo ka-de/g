@@ -2,6 +2,7 @@ use octocrab::Octocrab;
 use std::env;
 use std::fs;
 use std::path::Path;
+use getopts::Options;
 
 #[tokio::main]
 async fn main() -> octocrab::Result<()> {
@@ -12,14 +13,32 @@ async fn main() -> octocrab::Result<()> {
     // Get the command line arguments
     let args: Vec<String> = env::args().collect();
 
-    if args.len() != 3 {
-        eprintln!("Usage: {} <file_path> <description>", args[0]);
-        std::process::exit(1);
-    }
+    // Define the options
+    let mut opts = Options::new();
+    opts.optflag("", "public", "make the gist public");
+    opts.optflag("", "private", "make the gist private");
+
+    // Parse the options
+    let matches = match opts.parse(&args[1..]) {
+        Ok(m) => m,
+        Err(f) => panic!(f.to_string()),
+    };
 
     // The first argument is the file path, the second is the description
-    let file_path = &args[1];
-    let description = &args[2];
+    let file_path = if !matches.free.is_empty() {
+        &matches.free[0]
+    } else {
+        panic!("No file path provided");
+    };
+    let description = if matches.free.len() > 1 { &matches.free[1] } else { "" };
+
+    // Determine if the gist should be public or private
+    let is_public = if matches.opt_present("private") {
+        false
+    } else {
+        // Default to public if no option is provided
+        true
+    };
 
     // Strip the file path from the name
     let file_name = Path::new(file_path)
@@ -37,7 +56,7 @@ async fn main() -> octocrab::Result<()> {
         .file(file_name, &content)
         // Optional Parameters
         .description(description)
-        .public(false)
+        .public(is_public)
         .send().await?;
     println!("Done, created: {url}", url = gist.html_url);
     Ok(())
