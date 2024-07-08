@@ -21,7 +21,7 @@ async fn main() -> octocrab::Result<()> {
     // Parse the options
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => m,
-        Err(f) => panic!(f.to_string()),
+        Err(f) => panic!("{}", f.to_string()),
     };
 
     // The first argument is the file path, the second is the description
