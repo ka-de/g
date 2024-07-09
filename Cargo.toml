@@ -10,6 +10,14 @@ redis = { version = "0.25.4", features = ["aio", "tokio-comp"] }
 url = "2.5.2"
 getopts = "0.2.21"
 
+[[bin]]
+name = "g"
+path = "src/main.rs"
+
+[lib]
+name = "g"
+path = "src/lib.rs"
+
 ##################################################
 ### Examples
 
