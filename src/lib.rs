@@ -1,11 +1,37 @@
 use octocrab::Octocrab;
-use ::redis::AsyncCommands;
 use ::redis::aio;
+use ::redis::AsyncCommands;
 use std::error::Error;
 use url::Url;
 
 pub mod github {
     use super::*;
+
+    pub async fn get_repo_stats(
+        octocrab: &Octocrab,
+        owner: &str,
+        repo: &str
+    ) -> Result<(String, u32, u8), Box<dyn Error>> {
+        let repo_info = octocrab.repos(owner, repo).get().await?;
+        let repo_metrics = octocrab.repos(owner, repo).get_community_profile_metrics().await?;
+
+        let full_name = repo_info.full_name.unwrap_or_else(|| format!("{}/{}", owner, repo));
+        let stars = repo_info.stargazers_count.unwrap_or(0);
+        let health_percentage = repo_metrics.health_percentage;
+
+        Ok((full_name, stars, health_percentage.try_into().unwrap()))
+    }
+
+    // Add this to the existing redis module in lib.rs
+    pub async fn store_repos(
+        con: &mut ::redis::aio::MultiplexedConnection,
+        repos: &[(String, String)]
+    ) -> Result<(), Box<dyn Error>> {
+        for (name, url) in repos {
+            let _: () = con.hset("github_repos", name, url).await?;
+        }
+        Ok(())
+    }
 
     pub async fn create_gist(
         octocrab: &Octocrab,
