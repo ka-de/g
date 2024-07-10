@@ -34,17 +34,17 @@ async fn main() {
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => m,
         Err(f) => {
-            eprintln!("{}", f.to_string());
+            eprintln!("{f}");
             std::process::exit(1);
         }
     };
 
     // The first argument is the file path, the second is the description
-    let file_path = if !matches.free.is_empty() {
-        &matches.free[0]
-    } else {
+    let file_path: &String = if matches.free.is_empty() {
         eprintln!("No file path provided");
         std::process::exit(1);
+    } else {
+        &matches.free[0]
     };
     let description = if matches.free.len() > 1 { &matches.free[1] } else { "" };
 
@@ -71,7 +71,7 @@ async fn main() {
         }
     };
 
-    println!("Creating a gist with the content of {} on your account", file_name);
+    println!("Creating a gist with the content of {file_name} on your account");
     let gist = match
         octocrab
             .gists()

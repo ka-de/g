@@ -10,12 +10,9 @@ async fn main() {
 }
 
 async fn run() -> Result<(), Box<dyn std::error::Error>> {
-    let token = match std::env::var("GITHUB_TOKEN") {
-        Ok(token) => token,
-        Err(_) => {
-            eprintln!("Error: GITHUB_TOKEN environment variable is not set");
-            return Err("Missing GITHUB_TOKEN".into());
-        }
+    let Ok(token) = std::env::var("GITHUB_TOKEN") else {
+        eprintln!("Error: GITHUB_TOKEN environment variable is not set");
+        return Err("Missing GITHUB_TOKEN".into());
     };
 
     let octocrab = Octocrab::builder().personal_token(token).build()?;

@@ -17,7 +17,7 @@ use std::error::Error;
 use url::Url;
 
 pub mod github {
-    use super::*;
+    use super::{ AsyncCommands, Error, Octocrab, Url };
 
     /// Retrieves statistics for a specific GitHub repository.
     ///
@@ -31,6 +31,10 @@ pub mod github {
     ///
     /// A tuple containing the full name of the repository, number of stars,
     /// and health percentage.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the Octocrab instance fails to fetch the repository statistics.
     pub async fn get_repo_stats(
         octocrab: &Octocrab,
         owner: &str,
@@ -41,18 +45,15 @@ pub mod github {
 
         let full_name = repo_info.full_name.unwrap_or_else(|| format!("{owner}/{repo}"));
         let stars = repo_info.stargazers_count.unwrap_or_default();
-        let health_percentage = match repo_metrics.health_percentage.try_into() {
-            Ok(value) => value,
-            Err(_) => {
-                return Err(
-                    Box::new(
-                        std::io::Error::new(
-                            std::io::ErrorKind::Other,
-                            "Failed to convert health percentage"
-                        )
+        let Ok(health_percentage) = repo_metrics.health_percentage.try_into() else {
+            return Err(
+                Box::new(
+                    std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "Failed to convert health percentage"
                     )
-                );
-            }
+                )
+            );
         };
 
         Ok((full_name, stars, health_percentage))
@@ -68,6 +69,10 @@ pub mod github {
     /// # Returns
     ///
     /// A Result indicating success or failure of the operation.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the Redis operation fails.
     pub async fn store_repos(
         con: &mut ::redis::aio::MultiplexedConnection,
         repos: &[(String, String)]
@@ -91,6 +96,10 @@ pub mod github {
     /// # Returns
     ///
     /// The URL of the created gist.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the gist creation fails.
     pub async fn create_gist(
         octocrab: &Octocrab,
         file_name: &str,
@@ -118,6 +127,10 @@ pub mod github {
     /// # Returns
     ///
     /// A vector of tuples containing repository names and URLs.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the repository listing fails.
     pub async fn list_repos(octocrab: &Octocrab) -> Result<Vec<(String, String)>, Box<dyn Error>> {
         let mut repos = Vec::new();
         let mut page = octocrab
@@ -161,7 +174,7 @@ pub mod github {
 }
 
 pub mod redis {
-    use super::*;
+    use super::{ AsyncCommands, Error, aio, redis };
 
     /// Stores repository information in Redis.
     ///
@@ -173,6 +186,9 @@ pub mod redis {
     /// # Returns
     ///
     /// A Result indicating success or failure of the operation.
+    /// # Errors
+    ///
+    /// This function will return an error if the Redis operation fails.
     pub async fn store_repos(
         con: &mut redis::aio::MultiplexedConnection,
         repos: &[(String, String)]
@@ -193,6 +209,10 @@ pub mod redis {
 /// # Returns
 ///
 /// An Octocrab instance configured with the provided token.
+///
+/// # Errors
+///
+/// This function will return an error if the Octocrab instance creation fails.
 pub fn build_octocrab(token: &str) -> Result<Octocrab, Box<dyn Error>> {
     Ok(Octocrab::builder().personal_token(token.to_string()).build()?)
 }

@@ -36,14 +36,14 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let matches = opts.parse(&args[1..])?;
 
     if matches.opt_present("h") {
-        print_usage(&program, opts);
+        print_usage(&program, &opts);
         return Ok(());
     }
 
     let token = env::var("GITHUB_TOKEN").map_err(|_| "GITHUB_TOKEN env variable is required")?;
     let octocrab = build_octocrab(&token)?;
 
-    match matches.free.get(0).map(String::as_str) {
+    match matches.free.first().map(String::as_str) {
         Some("store-repos") => {
             let repos = github::list_repos(&octocrab).await?;
             let client = Client::open("redis://127.0.0.1/")?;
@@ -54,7 +54,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         Some("repo-stats") => {
             if matches.free.len() < 3 {
                 eprintln!("Not enough arguments for repo-stats command");
-                print_usage(&program, opts);
+                print_usage(&program, &opts);
                 exit(1);
             }
             let owner = &matches.free[1];
@@ -69,7 +69,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         Some("gist") => {
             if matches.free.len() < 3 {
                 eprintln!("Not enough arguments for gist command");
-                print_usage(&program, opts);
+                print_usage(&program, &opts);
                 exit(1);
             }
 
@@ -100,7 +100,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         _ => {
-            print_usage(&program, opts);
+            print_usage(&program, &opts);
             exit(1);
         }
     }
@@ -116,8 +116,8 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 ///
 /// * `program` - The name of the program executable.
 /// * `opts` - The `Options` instance containing the command-line options.
-fn print_usage(program: &str, opts: Options) {
-    let brief = format!("Usage: {} [options] COMMAND", program);
+fn print_usage(program: &str, opts: &Options) {
+    let brief = format!("Usage: {program} [options] COMMAND");
     print!("{}", opts.usage(&brief));
     println!("\nCommands:");
     println!("  gist <file_path> <description>  Create a gist");
