@@ -1,11 +1,15 @@
-use g::{ build_octocrab, github, redis };
+// g/src/main.rs
+
+use std::{ process::exit, fs, path::Path, env };
 use getopts::Options;
-use std::env;
-use std::fs;
-use std::path::Path;
-use std::process::exit;
 use ::redis::Client;
 
+use g::{ build_octocrab, github, redis };
+
+/// The entry point of the application.
+///
+/// This function parses command-line arguments and executes the corresponding command.
+/// It handles errors by printing them to standard error and exiting the program with a non-zero status code.
 #[tokio::main]
 async fn main() {
     if let Err(e) = run().await {
@@ -14,6 +18,12 @@ async fn main() {
     }
 }
 
+/// Runs the main logic of the application based on parsed command-line arguments.
+///
+/// # Errors
+///
+/// Returns an error if there is an issue with parsing command-line arguments,
+/// interacting with the GitHub API, or communicating with the Redis server.
 async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
     let program = args[0].clone();
@@ -30,7 +40,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    let token = env::var("GITHUB_TOKEN").expect("GITHUB_TOKEN env variable is required");
+    let token = env::var("GITHUB_TOKEN").map_err(|_| "GITHUB_TOKEN env variable is required")?;
     let octocrab = build_octocrab(&token)?;
 
     match matches.free.get(0).map(String::as_str) {
@@ -98,6 +108,14 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Prints the usage information for the application.
+///
+/// This function displays the available commands and options to the user.
+///
+/// # Arguments
+///
+/// * `program` - The name of the program executable.
+/// * `opts` - The `Options` instance containing the command-line options.
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [options] COMMAND", program);
     print!("{}", opts.usage(&brief));

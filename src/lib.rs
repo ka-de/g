@@ -1,3 +1,15 @@
+// g/src/lib.rs
+
+// Turn clippy into a real nerd
+#![warn(clippy::all, clippy::pedantic)]
+
+//! A library for interacting with GitHub and Redis.
+//!
+//! This library provides functionality to interact with GitHub repositories,
+//! create gists, and store repository information in Redis. It uses the
+//! `octocrab` crate for GitHub API interactions and the `redis` crate for
+//! Redis operations.
+
 use octocrab::Octocrab;
 use ::redis::aio;
 use ::redis::AsyncCommands;
@@ -7,6 +19,18 @@ use url::Url;
 pub mod github {
     use super::*;
 
+    /// Retrieves statistics for a specific GitHub repository.
+    ///
+    /// # Arguments
+    ///
+    /// * `octocrab` - An instance of the Octocrab client.
+    /// * `owner` - The owner of the repository.
+    /// * `repo` - The name of the repository.
+    ///
+    /// # Returns
+    ///
+    /// A tuple containing the full name of the repository, number of stars,
+    /// and health percentage.
     pub async fn get_repo_stats(
         octocrab: &Octocrab,
         owner: &str,
@@ -15,14 +39,35 @@ pub mod github {
         let repo_info = octocrab.repos(owner, repo).get().await?;
         let repo_metrics = octocrab.repos(owner, repo).get_community_profile_metrics().await?;
 
-        let full_name = repo_info.full_name.unwrap_or_else(|| format!("{}/{}", owner, repo));
-        let stars = repo_info.stargazers_count.unwrap_or(0);
-        let health_percentage = repo_metrics.health_percentage;
+        let full_name = repo_info.full_name.unwrap_or_else(|| format!("{owner}/{repo}"));
+        let stars = repo_info.stargazers_count.unwrap_or_default();
+        let health_percentage = match repo_metrics.health_percentage.try_into() {
+            Ok(value) => value,
+            Err(_) => {
+                return Err(
+                    Box::new(
+                        std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            "Failed to convert health percentage"
+                        )
+                    )
+                );
+            }
+        };
 
-        Ok((full_name, stars, health_percentage.try_into().unwrap()))
+        Ok((full_name, stars, health_percentage))
     }
 
-    // Add this to the existing redis module in lib.rs
+    /// Stores repository information in Redis.
+    ///
+    /// # Arguments
+    ///
+    /// * `con` - A mutable reference to a Redis multiplexed connection.
+    /// * `repos` - A slice of tuples containing repository names and URLs.
+    ///
+    /// # Returns
+    ///
+    /// A Result indicating success or failure of the operation.
     pub async fn store_repos(
         con: &mut ::redis::aio::MultiplexedConnection,
         repos: &[(String, String)]
@@ -33,6 +78,19 @@ pub mod github {
         Ok(())
     }
 
+    /// Creates a new GitHub gist.
+    ///
+    /// # Arguments
+    ///
+    /// * `octocrab` - An instance of the Octocrab client.
+    /// * `file_name` - The name of the file to be included in the gist.
+    /// * `content` - The content of the gist.
+    /// * `description` - A description of the gist.
+    /// * `is_public` - Whether the gist should be public or private.
+    ///
+    /// # Returns
+    ///
+    /// The URL of the created gist.
     pub async fn create_gist(
         octocrab: &Octocrab,
         file_name: &str,
@@ -51,6 +109,15 @@ pub mod github {
         Ok(gist.html_url.to_string())
     }
 
+    /// Lists repositories for the authenticated user.
+    ///
+    /// # Arguments
+    ///
+    /// * `octocrab` - An instance of the Octocrab client.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tuples containing repository names and URLs.
     pub async fn list_repos(octocrab: &Octocrab) -> Result<Vec<(String, String)>, Box<dyn Error>> {
         let mut repos = Vec::new();
         let mut page = octocrab
@@ -62,10 +129,23 @@ pub mod github {
         loop {
             for repo in &page.items {
                 let name = repo.name.clone();
-                let url = repo.html_url
-                    .as_ref()
-                    .unwrap_or(&Url::parse("https://github.com").unwrap())
-                    .to_string();
+                let url = match &repo.html_url {
+                    Some(url) => url.to_string(),
+                    None =>
+                        match Url::parse("https://github.com") {
+                            Ok(url) => url.to_string(),
+                            Err(_) => {
+                                return Err(
+                                    Box::new(
+                                        std::io::Error::new(
+                                            std::io::ErrorKind::Other,
+                                            "Failed to parse URL"
+                                        )
+                                    )
+                                );
+                            }
+                        }
+                };
                 repos.push((name, url));
             }
 
@@ -83,6 +163,16 @@ pub mod github {
 pub mod redis {
     use super::*;
 
+    /// Stores repository information in Redis.
+    ///
+    /// # Arguments
+    ///
+    /// * `con` - A mutable reference to a Redis multiplexed connection.
+    /// * `repos` - A slice of tuples containing repository names and URLs.
+    ///
+    /// # Returns
+    ///
+    /// A Result indicating success or failure of the operation.
     pub async fn store_repos(
         con: &mut redis::aio::MultiplexedConnection,
         repos: &[(String, String)]
@@ -94,6 +184,15 @@ pub mod redis {
     }
 }
 
+/// Builds an Octocrab instance with the provided GitHub token.
+///
+/// # Arguments
+///
+/// * `token` - A GitHub personal access token.
+///
+/// # Returns
+///
+/// An Octocrab instance configured with the provided token.
 pub fn build_octocrab(token: &str) -> Result<Octocrab, Box<dyn Error>> {
     Ok(Octocrab::builder().personal_token(token.to_string()).build()?)
 }
